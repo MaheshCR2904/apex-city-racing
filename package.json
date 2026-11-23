@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Apex City: Neon Horizon - 2D & 3D Open World City Car Racing Game",
   "scripts": {
-    "start": "node scripts/dev-server.js"
+    "dev": "node scripts/dev-server.js"
   },
   "keywords": [
     "game",
