@@ -1,4 +1,7 @@
 node_modules/
+scripts/
+package.json
+package-lock.json
 .DS_Store
 Thumbs.db
 *.log
