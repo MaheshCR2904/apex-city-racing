@@ -208,7 +208,15 @@ class Game {
   }
 }
 
-// Instantiate game on DOM ready
-window.addEventListener('DOMContentLoaded', () => {
-  window.game = new Game();
-});
+// Instantiate game
+function initGame() {
+  if (!window.game) {
+    window.game = new Game();
+  }
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initGame);
+} else {
+  initGame();
+}

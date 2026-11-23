@@ -221,7 +221,15 @@ export class Game3D {
   }
 }
 
-// Start 3D Game on DOM ready
-window.addEventListener('DOMContentLoaded', () => {
-  window.game = new Game3D();
-});
+// Start 3D Game
+function initGame3D() {
+  if (!window.game) {
+    window.game = new Game3D();
+  }
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initGame3D);
+} else {
+  initGame3D();
+}
