@@ -1,6 +1,6 @@
 // game3d.js - Main 3D Game Loop, Three.js WebGL Engine, Subsystems Coordination & HUD Binding
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from '../lib/three.module.js';
 
 import { City } from '../city.js';
 import { Car } from '../car.js';

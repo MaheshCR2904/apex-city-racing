@@ -1,6 +1,6 @@
 // lighting3d.js - Dynamic 3D Sky Dome, Sun/Moon Trajectory, Atmospheric Fog & Shadows
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from '../lib/three.module.js';
 
 export class Lighting3D {
   constructor(scene, renderer) {

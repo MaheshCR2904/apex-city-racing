@@ -1,6 +1,6 @@
 // traffic3d.js - 3D Civilian Vehicles, Police Interceptors & AI Racers Mesh Manager
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from '../lib/three.module.js';
 import { SCALE } from './city3d.js';
 
 export class Traffic3D {

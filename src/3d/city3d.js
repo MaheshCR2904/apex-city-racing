@@ -1,6 +1,6 @@
 // city3d.js - Complete 3D Procedural Metropolis Environment for Three.js
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from '../lib/three.module.js';
 
 export const SCALE = 0.4; // 1 world unit = 2.5 2D pixels
 

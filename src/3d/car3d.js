@@ -1,6 +1,6 @@
 // car3d.js - 3D Car Model with 4 Rotating & Steering Wheels, Suspension Body Roll & Dynamic Lights
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from '../lib/three.module.js';
 import { SCALE } from './city3d.js';
 
 export class Car3D {

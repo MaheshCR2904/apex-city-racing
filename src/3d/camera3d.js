@@ -1,6 +1,6 @@
 // camera3d.js - Dynamic 3D Chase Camera with Speed FOV, Drift Lag, Screen Shake & Multi-View Modes
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from '../lib/three.module.js';
 
 export class Camera3D {
   constructor(aspect) {

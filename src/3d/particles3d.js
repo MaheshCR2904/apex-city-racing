@@ -1,6 +1,6 @@
 // particles3d.js - 3D Particle Systems: Tire Smoke, Nitro Flames, Sparks & Checkpoint Gate Hoops
 
-import * as THREE from '/node_modules/three/build/three.module.js';
+import * as THREE from '../lib/three.module.js';
 import { SCALE } from './city3d.js';
 
 export class Particles3D {
