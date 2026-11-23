@@ -1,0 +1,23 @@
+{
+  "name": "apex-city-racer-2d",
+  "version": "1.0.0",
+  "description": "Apex City: Neon Horizon - Complete 2D Open World City Car Racing Game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "game",
+    "2d",
+    "racing",
+    "canvas",
+    "open-world",
+    "city-racer",
+    "html5"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.187.0"
+  }
+}

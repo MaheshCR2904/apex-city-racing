@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Apex City 3D: Neon Horizon - 3D Open World City Racing Game</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Main Game Canvas -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Game HUD Overlay -->
+  <div id="hud-overlay">
+    <!-- Top Header Bar -->
+    <header class="hud-top">
+      <div class="hud-brand">
+        <span class="game-logo">⚡ APEX CITY</span>
+        <span class="game-subtitle">NEON HORIZON</span>
+      </div>
+
+      <div class="district-badge">
+        <div id="district-name">DOWNTOWN METROPOLIS</div>
+        <div id="district-desc">Towering Glass Skyscrapers & Corporate Plazas</div>
+      </div>
+
+      <div class="status-group">
+        <!-- Wanted Heat Stars -->
+        <div class="wanted-box" title="Police Heat Level">
+          <span class="wanted-label">HEAT:</span>
+          <div id="wanted-stars">
+            <span class="star inactive">★</span>
+            <span class="star inactive">★</span>
+            <span class="star inactive">★</span>
+            <span class="star inactive">★</span>
+            <span class="star inactive">★</span>
+          </div>
+        </div>
+
+        <!-- Cash Counter -->
+        <div class="cash-box">
+          <span class="cash-icon">💰</span>
+          <span id="cash-value">$0</span>
+        </div>
+      </div>
+
+      <!-- Quick Action Navigation -->
+      <nav class="hud-actions">
+        <button id="btn-dimension" class="hud-btn" title="Switch 2D / 3D Engine">🎮 MODE: 2D</button>
+        <button id="btn-camera" class="hud-btn hidden" title="Toggle Camera View (C)">📷 CAM: CHASE</button>
+        <button id="btn-garage" class="hud-btn" title="Open Garage (G)">🏎️ GARAGE</button>
+        <button id="btn-races" class="hud-btn" title="Select Street Race (R)">🏁 RACES</button>
+        <button id="btn-delivery" class="hud-btn" title="Start Express Delivery">📦 DELIVERY</button>
+        <button id="btn-map" class="hud-btn" title="City GPS Map (M)">🗺️ MAP</button>
+        <button id="btn-daynight" class="hud-btn" title="Toggle Day / Night">☀️ LIGHTING</button>
+        <button id="btn-radio" class="hud-btn" title="Toggle Cyber Radio">📻 RADIO: ON</button>
+        <button id="btn-audio" class="hud-btn" title="Audio SFX Mute">🔊 AUDIO</button>
+        <button id="btn-help" class="hud-btn" title="Controls & Help">❓ HELP</button>
+      </nav>
+    </header>
+
+    <!-- Center Mission / Race Indicators -->
+    <div id="race-hud" class="hidden">
+      <div class="race-stat-card">
+        <div class="label">POSITION</div>
+        <div id="race-position" class="val highlight">1ST / 4</div>
+      </div>
+      <div class="race-stat-card">
+        <div class="label">LAP</div>
+        <div id="race-lap" class="val">LAP 1 / 3</div>
+      </div>
+      <div class="race-stat-card">
+        <div class="label">TIME</div>
+        <div id="race-timer" class="val">00:00.00</div>
+      </div>
+    </div>
+
+    <!-- Countdown 3.. 2.. 1.. GO! -->
+    <div id="countdown-overlay" class="hidden">3</div>
+
+    <!-- Express Delivery Mission Banner -->
+    <div id="delivery-hud" class="hidden">
+      <div class="delivery-card">
+        <div class="delivery-icon">📦</div>
+        <div>
+          <div id="delivery-dest" class="delivery-title">EXPRESS RUSH</div>
+          <div class="delivery-sub">RUSH TO DROP ZONE BEFORE TIMER EXPIRES!</div>
+        </div>
+        <div id="delivery-timer" class="delivery-clock">00:45</div>
+      </div>
+    </div>
+
+    <!-- Drift Combo Indicator -->
+    <div id="drift-hud" class="hidden">
+      <span class="drift-flame">🔥</span>
+      <span class="drift-label">DRIFT</span>
+      <span id="drift-score">0</span>
+      <span id="drift-multiplier">x1.0</span>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="notification-toast" class="hidden"></div>
+
+    <!-- Bottom Left: Speedometer & Telemetry -->
+    <div class="hud-bottom-left">
+      <div class="gauge-cluster">
+        <div class="speed-digital">
+          <span id="speed-value">0</span>
+          <span class="speed-unit">KM/H</span>
+        </div>
+        <div class="gear-indicator">
+          <span class="gear-label">GEAR</span>
+          <span id="gear-value">1</span>
+        </div>
+      </div>
+
+      <!-- Telemetry Bars -->
+      <div class="telemetry-bars">
+        <div class="bar-group">
+          <span class="bar-label">RPM</span>
+          <div class="bar-track">
+            <div id="rpm-bar" class="bar-fill rpm-fill"></div>
+          </div>
+        </div>
+
+        <div class="bar-group">
+          <span class="bar-label">NOS</span>
+          <div class="bar-track">
+            <div id="nitro-bar" class="bar-fill nos-fill"></div>
+          </div>
+        </div>
+
+        <div class="bar-group">
+          <span class="bar-label">ARMOR</span>
+          <div class="bar-track">
+            <div id="health-bar" class="bar-fill armor-fill"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Right: Minimap Radar -->
+    <div class="hud-bottom-right">
+      <div class="minimap-wrapper">
+        <canvas id="minimap-canvas" width="220" height="220"></canvas>
+        <div class="minimap-ring"></div>
+        <div class="minimap-crosshair"></div>
+      </div>
+      <div class="minimap-caption">GPS RADAR</div>
+    </div>
+
+    <!-- Mobile Touch Controls -->
+    <div id="touch-controls">
+      <div class="touch-group touch-left-group">
+        <button id="touch-left" class="touch-btn">◀</button>
+        <button id="touch-right" class="touch-btn">▶</button>
+      </div>
+      <div class="touch-group touch-right-group">
+        <button id="touch-nitro" class="touch-btn touch-nitro">NOS</button>
+        <button id="touch-drift" class="touch-btn touch-drift">DRIFT</button>
+        <button id="touch-brake" class="touch-btn touch-brake">BRAKE</button>
+        <button id="touch-gas" class="touch-btn touch-gas">GAS</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Garage & Customization -->
+  <div id="garage-modal" class="modal-backdrop hidden">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2>🏎️ APEX MOTORS GARAGE</h2>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="garage-section-title">CHOOSE VEHICLE</div>
+        <div id="garage-car-list" class="car-grid"></div>
+
+        <div class="garage-section-title">PERFORMANCE UPGRADES</div>
+        <div id="garage-upgrades" class="upgrade-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Street Race Selection -->
+  <div id="race-select-modal" class="modal-backdrop hidden">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2>🏁 CITY STREET CIRCUITS</h2>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">Challenge top city street racers across grueling metropolitan circuits. Beat them to claim cash prizes and glory!</p>
+        <div id="race-tracks-list" class="track-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Full City GPS Map -->
+  <div id="fullmap-modal" class="modal-backdrop hidden">
+    <div class="modal-window modal-wide">
+      <div class="modal-header">
+        <h2>🗺️ METROPOLIS SATELLITE GPS</h2>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body text-center">
+        <canvas id="fullmap-canvas" width="600" height="600"></canvas>
+        <div class="map-legend">
+          <span><b style="color: #00f0ff">■</b> You</span>
+          <span><b style="color: #38bdf8">―</b> Roads</span>
+          <span><b style="color: #0369a1">■</b> Ocean & Lakes</span>
+          <span><b style="color: #ff007f">■</b> Neon District</span>
+          <span><b style="color: #fb8500">■</b> Harbor</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Controls & Guide -->
+  <div id="help-modal" class="modal-backdrop hidden">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h2>🎮 HOW TO PLAY & CONTROLS</h2>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body help-content">
+        <div class="help-section">
+          <h3>🕹️ Vehicle Controls</h3>
+          <ul class="key-list">
+            <li><span class="key">W</span> / <span class="key">▲</span> : Accelerate / Gas</li>
+            <li><span class="key">S</span> / <span class="key">▼</span> : Brake / Reverse</li>
+            <li><span class="key">A</span> / <span class="key">◄</span> : Steer Left</li>
+            <li><span class="key">D</span> / <span class="key">►</span> : Steer Right</li>
+            <li><span class="key">SPACE</span> : Handbrake (Initiates High-Angle Power Drifts!)</li>
+            <li><span class="key">SHIFT</span> : Nitro Boost (NOS)</li>
+            <li><span class="key">H</span> : Car Horn</li>
+            <li><span class="key">L</span> : Toggle Headlights</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>⚡ Hotkeys & Menus</h3>
+          <ul class="key-list">
+            <li><span class="key">C</span> : Toggle 3D Camera (Chase, Close, Hood, Heli)</li>
+            <li><span class="key">G</span> : Garage & Car Upgrades</li>
+            <li><span class="key">R</span> : Street Race Circuits</li>
+            <li><span class="key">M</span> : Full City Map</li>
+            <li><span class="key">ESC</span> : Close Open Windows</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>🔥 Features & Pro Tips</h3>
+          <p>• <b>Drifting:</b> Tap Handbrake while turning at speed to slide. Build huge drift combos to bank bonus cash!</p>
+          <p>• <b>Stunt Ramps:</b> Hit yellow chevron ramps at high speed to perform airborne leaps across city streets!</p>
+          <p>• <b>Wanted Stars:</b> Crashing into civilians or speeding past radars spawns Police Interceptors. Outrun them or break sight to evade!</p>
+          <p>• <b>Collectibles:</b> Grab green cash briefcases ($) and cyan NOS canisters hidden across alleys, docks, and islands!</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get('mode') || localStorage.getItem('apex_engine_mode') || '2d';
+
+    const dimBtn = document.getElementById('btn-dimension');
+    const camBtn = document.getElementById('btn-camera');
+
+    if (dimBtn) {
+      dimBtn.textContent = mode === '3d' ? '🎮 MODE: 3D' : '🎮 MODE: 2D';
+      dimBtn.addEventListener('click', () => {
+        const nextMode = mode === '3d' ? '2d' : '3d';
+        localStorage.setItem('apex_engine_mode', nextMode);
+        window.location.search = `?mode=${nextMode}`;
+      });
+    }
+
+    if (mode === '3d') {
+      if (camBtn) camBtn.classList.remove('hidden');
+      import('./src/3d/game3d.js');
+    } else {
+      if (camBtn) camBtn.classList.add('hidden');
+      import('./src/main.js');
+    }
+  </script>
+</body>
+</html>
