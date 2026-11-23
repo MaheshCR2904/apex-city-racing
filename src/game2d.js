@@ -165,7 +165,10 @@ class Game {
       this.player.isDrifting,
       this.player.isNitroActive,
       this.missionManager.wantedLevel,
-      this.player.isPolice
+      this.player.isPolice,
+      this.player.speed,
+      this.player.isBurnout,
+      this.controls.throttle
     );
 
     // 10. Update UI HUD

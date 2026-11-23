@@ -59,7 +59,8 @@ export class UIManager {
       this.showNotification('EXPRESS DELIVERY STARTED!', '#facc15');
     });
     document.getElementById('btn-daynight')?.addEventListener('click', () => {
-      this.game.lightingManager.toggleDayNight();
+      const lm = this.game.lightingManager || this.game.lighting3D;
+      lm?.toggleDayNight();
     });
     document.getElementById('btn-audio')?.addEventListener('click', () => {
       const isMuted = this.game.audioEngine.toggleMute();

@@ -160,6 +160,19 @@ export class Car {
     // Gear & RPM for audio engine
     this.gear = 1;
     this.rpm = 1000;
+    this.revLimiter = false;
+    this.isShifting = false;
+    this.shiftTimer = 0;
+
+    // Realistic Weight Transfer & Suspension (Spring-Damper Simulation)
+    this.pitch = 0; // Front dive (+), rear squat (-)
+    this.pitchVel = 0;
+    this.roll = 0;  // Body lean into corners
+    this.rollVel = 0;
+    this.suspensionBounce = 0;
+
+    // Burnout state
+    this.isBurnout = false;
 
     // Custom paint / visual overrides
     this.customBodyColor = null;
@@ -248,26 +261,54 @@ export class Car {
       this.nitro = Math.min(this.maxNitro, this.nitro + 5 * dt);
     }
 
-    // 3. Throttle, Reverse & Braking
+    // 3. Throttle, Reverse, Braking & Burnout
     this.braking = false;
     this.reversing = false;
+    this.isBurnout = false;
 
-    if (controls.throttle) {
+    // Check for Burnout (Holding Gas + Brake simultaneously at standstill or low speed)
+    if (controls.throttle && controls.brake && Math.abs(this.speed) < 80 && !this.isAirborne) {
+      this.isBurnout = true;
+      this.speed *= 0.85; // Hold car in place with front brakes
+      this.rpm = 6800 + (Math.random() - 0.5) * 800; // Revving engine on limiter
+
+      // Billow thick burnout smoke at rear wheels
+      if (particleSystem) {
+        const forwardX = Math.cos(this.angle);
+        const forwardY = Math.sin(this.angle);
+        const rightX = -Math.sin(this.angle);
+        const rightY = Math.cos(this.angle);
+        const rearDist = this.length * 0.38;
+        const trackDist = this.width * 0.44;
+
+        const rlX = this.x - forwardX * rearDist - rightX * trackDist;
+        const rlY = this.y - forwardY * rearDist - rightY * trackDist;
+        const rrX = this.x - forwardX * rearDist + rightX * trackDist;
+        const rrY = this.y - forwardY * rearDist + rightY * trackDist;
+
+        particleSystem.createTireSmoke(rlX, rlY);
+        particleSystem.createTireSmoke(rrX, rrY);
+        particleSystem.addSkidmark(rlX, rlY, this.angle, 0.7);
+        particleSystem.addSkidmark(rrX, rrY, this.angle, 0.7);
+      }
+    } else if (controls.throttle) {
       if (this.speed < -10) {
         // Was reversing, now braking
-        this.speed += 400 * dt;
+        this.speed += 420 * dt;
         this.braking = true;
       } else {
-        // Accelerate forward
-        this.speed += currentAccel * dt;
+        // Accelerate forward with gear torque curve
+        const gearTorque = [0, 1.25, 1.15, 1.05, 0.95, 0.85, 0.75];
+        const torqueMult = gearTorque[this.gear] || 1.0;
+        this.speed += currentAccel * torqueMult * dt;
         if (this.speed > currentMaxSpeed) {
-          this.speed = Math.max(currentMaxSpeed, this.speed - 100 * dt);
+          this.speed = Math.max(currentMaxSpeed, this.speed - 120 * dt);
         }
       }
     } else if (controls.brake) {
       if (this.speed > 10) {
-        // Braking while moving forward
-        this.speed -= 480 * dt;
+        // High-performance braking with ABS modulation
+        this.speed -= 520 * dt;
         this.braking = true;
       } else {
         // Reverse gear
@@ -277,14 +318,34 @@ export class Car {
         this.reversing = true;
       }
     } else {
-      // Natural rolling resistance and drag
-      const drag = 120 * dt;
+      // Natural rolling resistance and aerodynamic drag (drag proportional to v^2)
+      const aeroDrag = (this.speed * Math.abs(this.speed)) * 0.00035 * dt;
+      const rollingDrag = 110 * dt;
       if (this.speed > 0) {
-        this.speed = Math.max(0, this.speed - drag);
+        this.speed = Math.max(0, this.speed - rollingDrag - aeroDrag);
       } else if (this.speed < 0) {
-        this.speed = Math.min(0, this.speed + drag);
+        this.speed = Math.min(0, this.speed + rollingDrag - aeroDrag);
       }
     }
+
+    // Dynamic Weight Transfer & Suspension Simulation
+    let targetPitch = 0;
+    if (this.braking) {
+      targetPitch = 0.09; // Front dive under hard braking
+    } else if (controls.throttle && this.speed < currentMaxSpeed * 0.9) {
+      targetPitch = -0.065; // Rear squat on acceleration
+    }
+
+    // Lateral weight transfer (roll leaning outward into corners)
+    const targetRoll = -this.angularVelocity * 0.085;
+
+    // Damped spring oscillation
+    const springK = 32.0;
+    const dampingC = 7.5;
+    this.pitchVel += (targetPitch - this.pitch) * springK * dt - this.pitchVel * dampingC * dt;
+    this.pitch += this.pitchVel * dt;
+    this.rollVel += (targetRoll - this.roll) * springK * dt - this.rollVel * dampingC * dt;
+    this.roll += this.rollVel * dt;
 
     // 4. Steering and Caster Return
     const steerSpeed = 6.0;
@@ -454,7 +515,7 @@ export class Car {
     }
 
     // 12. Engine RPM calculation
-    this.updateEngineRPM();
+    this.updateEngineRPM(dt, audioSystem);
 
     // Clamp coordinates to world boundaries
     const pad = 60;
@@ -462,17 +523,39 @@ export class Car {
     this.y = Math.max(pad, Math.min(city.height - pad, this.y));
   }
 
-  updateEngineRPM() {
+  updateEngineRPM(dt = 0.016, audioSystem = null) {
+    if (this.isBurnout) return; // Burnout maintains high revs
+
     const absSpeed = Math.abs(this.speed);
-    // Simple 5-gear simulation
-    const gearMax = [0, 80, 160, 260, 380, 600];
-    for (let g = 1; g <= 5; g++) {
-      if (absSpeed <= gearMax[g] || g === 5) {
-        this.gear = g;
+    const gearMax = [0, 85, 175, 280, 400, 560, 750]; // 6-speed gearbox
+    let newGear = 1;
+
+    for (let g = 1; g <= 6; g++) {
+      if (absSpeed <= gearMax[g] || g === 6) {
+        newGear = g;
         const prevMax = gearMax[g - 1];
         const span = gearMax[g] - prevMax;
         const progress = Math.max(0, Math.min(1, (absSpeed - prevMax) / span));
-        this.rpm = 1200 + progress * 6800;
+
+        let targetRpm = 1200 + progress * 6800;
+        // Rev limiter bounce near redline
+        if (targetRpm > 7800 && absSpeed >= gearMax[g] * 0.96) {
+          this.revLimiter = Math.random() > 0.45;
+          targetRpm = this.revLimiter ? 7950 : 7400;
+          if (audioSystem && Math.random() < 0.2) audioSystem.playExhaustPop();
+        } else {
+          this.revLimiter = false;
+        }
+
+        // Detect Gear Shift (play exhaust pop sound)
+        if (newGear !== this.gear) {
+          if (audioSystem) audioSystem.playExhaustPop();
+          this.isShifting = true;
+          this.shiftTimer = 0.12;
+        }
+
+        this.gear = newGear;
+        this.rpm += (targetRpm - this.rpm) * Math.min(1.0, 18.0 * (dt || 0.016));
         break;
       }
     }

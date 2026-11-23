@@ -31,6 +31,14 @@ export class AudioEngine {
     this.sirenGain = null;
     this.sirenLFO = null;
 
+    // Aerodynamic Wind Rush nodes
+    this.windSource = null;
+    this.windGain = null;
+    this.windFilter = null;
+
+    // Last throttle state for turbo blow-off detection
+    this.lastThrottleState = false;
+
     // Synthwave Radio state
     this.radioTimer = null;
     this.stepIndex = 0;
@@ -63,6 +71,7 @@ export class AudioEngine {
       this.setupScreechSynth();
       this.setupNitroSynth();
       this.setupSirenSynth();
+      this.setupWindSynth();
 
       this.initialized = true;
 
@@ -203,41 +212,180 @@ export class AudioEngine {
     this.sirenLFO.start();
   }
 
-  updateEngine(rpm, isDrifting, isNitro, wantedLevel, playerIsPolice = false) {
+  setupWindSynth() {
+    const bufferSize = this.ctx.sampleRate * 2;
+    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    // Pinkish noise for smoother rush
+    let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      output[i] = (b0 + b1 + b2) * 0.6;
+    }
+
+    this.windSource = this.ctx.createBufferSource();
+    this.windSource.buffer = noiseBuffer;
+    this.windSource.loop = true;
+
+    this.windFilter = this.ctx.createBiquadFilter();
+    this.windFilter.type = 'lowpass';
+    this.windFilter.frequency.setValueAtTime(320, this.ctx.currentTime);
+
+    this.windGain = this.ctx.createGain();
+    this.windGain.gain.setValueAtTime(0.0, this.ctx.currentTime);
+
+    this.windSource.connect(this.windFilter);
+    this.windFilter.connect(this.windGain);
+    this.windGain.connect(this.sfxGain);
+
+    this.windSource.start();
+  }
+
+  updateEngine(rpm, isDrifting, isNitro, wantedLevel, playerIsPolice = false, speed = 0, isBurnout = false, throttle = false) {
     if (!this.initialized || !this.ctx) return;
     const t = this.ctx.currentTime;
 
     // 1. Modulate Engine RPM Pitch
-    const normalizedRPM = Math.max(1000, Math.min(8000, rpm));
-    const targetFreq1 = 30 + (normalizedRPM / 8000) * 95;
+    const normalizedRPM = Math.max(1000, Math.min(8500, rpm));
+    const targetFreq1 = 32 + (normalizedRPM / 8000) * 110;
     const targetFreq2 = targetFreq1 * 0.5;
-    const filterCutoff = 220 + (normalizedRPM / 8000) * 1100;
+    const filterCutoff = 240 + (normalizedRPM / 8000) * 1250;
 
-    this.engineOsc1.frequency.setTargetAtTime(targetFreq1, t, 0.05);
-    this.engineOsc2.frequency.setTargetAtTime(targetFreq2, t, 0.05);
-    this.engineFilter.frequency.setTargetAtTime(filterCutoff, t, 0.05);
+    this.engineOsc1.frequency.setTargetAtTime(targetFreq1, t, 0.04);
+    this.engineOsc2.frequency.setTargetAtTime(targetFreq2, t, 0.04);
+    this.engineFilter.frequency.setTargetAtTime(filterCutoff, t, 0.04);
 
-    // 2. Modulate Drift Screech
-    if (isDrifting) {
-      this.screechGain.gain.setTargetAtTime(0.22, t, 0.04);
-      this.screechFilter.frequency.setTargetAtTime(1100 + Math.random() * 300, t, 0.05);
+    // 2. Modulate Drift / Burnout Screech
+    if (isBurnout) {
+      this.screechGain.gain.setTargetAtTime(0.32, t, 0.03);
+      this.screechFilter.frequency.setTargetAtTime(950 + Math.random() * 200, t, 0.04);
+    } else if (isDrifting) {
+      this.screechGain.gain.setTargetAtTime(0.24, t, 0.04);
+      this.screechFilter.frequency.setTargetAtTime(1150 + Math.random() * 300, t, 0.05);
     } else {
       this.screechGain.gain.setTargetAtTime(0.0, t, 0.08);
     }
 
     // 3. Modulate Nitro Roar
     if (isNitro) {
-      this.nitroGain.gain.setTargetAtTime(0.28, t, 0.04);
+      this.nitroGain.gain.setTargetAtTime(0.32, t, 0.04);
     } else {
       this.nitroGain.gain.setTargetAtTime(0.0, t, 0.08);
     }
 
-    // 4. Modulate Police Siren
+    // 4. Modulate High-Speed Aerodynamic Wind Rush
+    if (this.windGain && this.windFilter) {
+      const absSpeed = Math.abs(speed);
+      if (absSpeed > 120) {
+        const windRatio = Math.min(1.0, (absSpeed - 120) / 450);
+        this.windGain.gain.setTargetAtTime(0.25 * windRatio, t, 0.1);
+        this.windFilter.frequency.setTargetAtTime(400 + windRatio * 900, t, 0.1);
+      } else {
+        this.windGain.gain.setTargetAtTime(0.0, t, 0.15);
+      }
+    }
+
+    // 5. Turbo Blow-Off Valve (Trigger on sudden lift-off after high throttle/revs)
+    if (this.lastThrottleState && !throttle && normalizedRPM > 4500 && !isBurnout) {
+      this.playBlowOff();
+    }
+    this.lastThrottleState = throttle;
+
+    // 6. Modulate Police Siren
     if (wantedLevel > 0 || playerIsPolice) {
       this.sirenGain.gain.setTargetAtTime(0.18, t, 0.1);
     } else {
       this.sirenGain.gain.setTargetAtTime(0.0, t, 0.2);
     }
+  }
+
+  playExhaustPop() {
+    if (!this.initialized || !this.ctx) return;
+    const t = this.ctx.currentTime;
+
+    // Number of crackles (1 to 3 micro pops)
+    const popCount = Math.floor(Math.random() * 2) + 1;
+    for (let i = 0; i < popCount; i++) {
+      const popDelay = i * (0.04 + Math.random() * 0.03);
+      const popTime = t + popDelay;
+
+      // 1. Noise burst (sharp metallic snap)
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.05);
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let j = 0; j < bufferSize; j++) {
+        data[j] = (Math.random() * 2 - 1) * Math.exp(-j / (bufferSize * 0.3));
+      }
+
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(600 + Math.random() * 400, popTime);
+      filter.Q.setValueAtTime(3.0, popTime);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.4, popTime);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, popTime + 0.06);
+
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(this.sfxGain);
+      noise.start(popTime);
+
+      // 2. Low-frequency punch (chest thump)
+      const subOsc = this.ctx.createOscillator();
+      const subGain = this.ctx.createGain();
+      subOsc.type = 'triangle';
+      subOsc.frequency.setValueAtTime(140 + Math.random() * 30, popTime);
+      subOsc.frequency.exponentialRampToValueAtTime(35, popTime + 0.07);
+
+      subGain.gain.setValueAtTime(0.5, popTime);
+      subGain.gain.exponentialRampToValueAtTime(0.001, popTime + 0.07);
+
+      subOsc.connect(subGain);
+      subGain.connect(this.sfxGain);
+      subOsc.start(popTime);
+      subOsc.stop(popTime + 0.08);
+    }
+  }
+
+  playBlowOff() {
+    if (!this.initialized || !this.ctx) return;
+    const t = this.ctx.currentTime;
+
+    // High frequency turbo pressure release hiss with subtle flutter ("psshh-tsu-tsu")
+    const duration = 0.32;
+    const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      const flutter = 1.0 + 0.25 * Math.sin(i * 0.04);
+      data[i] = (Math.random() * 2 - 1) * flutter * Math.exp(-i / (bufferSize * 0.45));
+    }
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(3200, t);
+    filter.frequency.exponentialRampToValueAtTime(1800, t + duration);
+    filter.Q.setValueAtTime(3.5, t);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.sfxGain);
+
+    source.start(t);
   }
 
   playCrash(intensity = 0.5) {

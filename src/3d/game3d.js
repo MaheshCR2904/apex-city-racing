@@ -48,6 +48,7 @@ export class Game3D {
     this.car3D = new Car3D(this.scene, this.player);
     this.traffic3D = new Traffic3D(this.scene, this.trafficManager, this.city);
     this.lighting3D = new Lighting3D(this.scene, this.renderer);
+    this.lightingManager = this.lighting3D;
     this.particles3D = new Particles3D(this.scene, this.city);
 
     // Controls
@@ -209,7 +210,10 @@ export class Game3D {
       this.player.isDrifting,
       this.player.isNitroActive,
       this.missionManager.wantedLevel,
-      this.player.isPolice
+      this.player.isPolice,
+      this.player.speed,
+      this.player.isBurnout,
+      this.controls.throttle
     );
 
     // 10. Update HUD, Minimap & Gauges

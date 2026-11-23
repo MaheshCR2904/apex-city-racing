@@ -27,6 +27,8 @@ export class City3D {
     this.buildTrees();
     this.buildStreetLamps();
     this.buildTrafficLights();
+    this.buildHighwayGantries();
+    this.buildGuardrails();
     this.buildStuntRamps();
     this.buildCollectibles();
   }
@@ -70,9 +72,41 @@ export class City3D {
     roadTexture.wrapS = THREE.RepeatWrapping;
     roadTexture.wrapT = THREE.RepeatWrapping;
 
+    // Helper to generate highway signboards
+    const createSignTexture = (title, sub) => {
+      const sCanvas = document.createElement('canvas');
+      sCanvas.width = 256;
+      sCanvas.height = 128;
+      const sCtx = sCanvas.getContext('2d');
+      // Highway Green
+      sCtx.fillStyle = '#065f46';
+      sCtx.fillRect(0, 0, 256, 128);
+      // White border
+      sCtx.strokeStyle = '#ffffff';
+      sCtx.lineWidth = 6;
+      sCtx.strokeRect(6, 6, 244, 116);
+      // Text
+      sCtx.fillStyle = '#ffffff';
+      sCtx.font = 'bold 20px sans-serif';
+      sCtx.textAlign = 'center';
+      sCtx.fillText(title, 128, 50);
+      sCtx.fillStyle = '#fef08a';
+      sCtx.font = 'bold 15px sans-serif';
+      sCtx.fillText(sub, 128, 86);
+      return new THREE.CanvasTexture(sCanvas);
+    };
+
+    const sign1Tex = createSignTexture('DOWNTOWN METRO', 'NEXT EXIT 500m');
+    const sign2Tex = createSignTexture('OCEAN HIGHWAY', 'APEX RACING ZONE');
+    const sign3Tex = createSignTexture('INDUSTRIAL PORT', 'SPEED LIMIT 120');
+
     return {
       windowTexture,
       roadTexture,
+      sign1Mat: new THREE.MeshBasicMaterial({ map: sign1Tex }),
+      sign2Mat: new THREE.MeshBasicMaterial({ map: sign2Tex }),
+      sign3Mat: new THREE.MeshBasicMaterial({ map: sign3Tex }),
+      guardrailMat: new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.85, roughness: 0.25 }),
       ground: new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9, metalness: 0.1 }),
       parkGrass: new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.8, metalness: 0.1 }),
       industrialGround: new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, metalness: 0.2 }),
@@ -409,6 +443,94 @@ export class City3D {
     }
 
     this.scene.add(tlGroup);
+  }
+
+  buildHighwayGantries() {
+    const gantryGroup = new THREE.Group();
+    const wideRoads = this.cityData.roads.filter(r => r.width >= 100);
+    const signMats = [this.materials.sign1Mat, this.materials.sign2Mat, this.materials.sign3Mat];
+
+    wideRoads.slice(0, 10).forEach((r, idx) => {
+      const isH = r.isHorizontal;
+      const midX = this.to3DX((r.x1 + r.x2) / 2);
+      const midZ = this.to3DZ((r.y1 + r.y2) / 2);
+      const roadW = r.width * SCALE;
+      const span = roadW + 14;
+
+      // 1. Two vertical steel support columns
+      const colGeo = new THREE.CylinderGeometry(0.4, 0.45, 13, 8);
+      const leftCol = new THREE.Mesh(colGeo, this.materials.lampPole);
+      const rightCol = new THREE.Mesh(colGeo, this.materials.lampPole);
+
+      if (isH) {
+        leftCol.position.set(midX, 6.5, midZ - span / 2);
+        rightCol.position.set(midX, 6.5, midZ + span / 2);
+      } else {
+        leftCol.position.set(midX - span / 2, 6.5, midZ);
+        rightCol.position.set(midX + span / 2, 6.5, midZ);
+      }
+      gantryGroup.add(leftCol);
+      gantryGroup.add(rightCol);
+
+      // 2. Horizontal overhead truss beam
+      const beamGeo = new THREE.BoxGeometry(isH ? 1.4 : span, 1.4, isH ? span : 1.4);
+      const beamMesh = new THREE.Mesh(beamGeo, this.materials.lampPole);
+      beamMesh.position.set(midX, 12.8, midZ);
+      gantryGroup.add(beamMesh);
+
+      // 3. Green Highway Signboard attached to beam
+      const signMat = signMats[idx % signMats.length];
+      const signMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(isH ? 0.4 : 12, 5.5, isH ? 12 : 0.4),
+        signMat
+      );
+      signMesh.position.set(midX, 11.5, midZ);
+      gantryGroup.add(signMesh);
+    });
+
+    this.scene.add(gantryGroup);
+  }
+
+  buildGuardrails() {
+    const railGroup = new THREE.Group();
+    const waterRoads = this.cityData.roads.filter(r => (r.x1 < 1000 || r.y1 > 4500 || r.x1 > 5000));
+    waterRoads.slice(0, 15).forEach((r) => {
+      const isH = r.isHorizontal;
+      const minX = Math.min(r.x1, r.x2);
+      const maxX = Math.max(r.x1, r.x2);
+      const minY = Math.min(r.y1, r.y2);
+      const maxY = Math.max(r.y1, r.y2);
+      const length = (isH ? maxX - minX : maxY - minY) * SCALE;
+      const midX = this.to3DX((r.x1 + r.x2) / 2);
+      const midZ = this.to3DZ((r.y1 + r.y2) / 2);
+      const halfW = (r.width * SCALE) / 2 + 1.2;
+
+      // Guardrail bar
+      const barGeo = new THREE.BoxGeometry(isH ? length : 0.35, 0.5, isH ? 0.35 : length);
+      const rail1 = new THREE.Mesh(barGeo, this.materials.guardrailMat);
+      rail1.position.set(isH ? midX : midX - halfW, 1.1, isH ? midZ - halfW : midZ);
+      railGroup.add(rail1);
+
+      const rail2 = new THREE.Mesh(barGeo, this.materials.guardrailMat);
+      rail2.position.set(isH ? midX : midX + halfW, 1.1, isH ? midZ + halfW : midZ);
+      railGroup.add(rail2);
+
+      // Support posts
+      const numPosts = Math.max(3, Math.floor(length / 16));
+      const postGeo = new THREE.CylinderGeometry(0.18, 0.18, 1.2, 6);
+      for (let p = 0; p <= numPosts; p++) {
+        const offset = (p / numPosts - 0.5) * length;
+        const p1 = new THREE.Mesh(postGeo, this.materials.guardrailMat);
+        p1.position.set(isH ? midX + offset : midX - halfW, 0.6, isH ? midZ - halfW : midZ + offset);
+        railGroup.add(p1);
+
+        const p2 = new THREE.Mesh(postGeo, this.materials.guardrailMat);
+        p2.position.set(isH ? midX + offset : midX + halfW, 0.6, isH ? midZ + halfW : midZ + offset);
+        railGroup.add(p2);
+      }
+    });
+
+    this.scene.add(railGroup);
   }
 
   buildStuntRamps() {

@@ -55,37 +55,47 @@ export class Camera3D {
     let idealPos = new THREE.Vector3();
     let idealTarget = new THREE.Vector3();
 
+    // Lateral drift swing offset (swings camera outward during drifts)
+    const rightX = -forwardZ;
+    const rightZ = forwardX;
+    const lateralSwing = (player.angularVelocity || 0) * (this.mode === 'CHASE' ? 4.5 : 2.0);
+
+    // Longitudinal inertia kick (pull back under nitro / hard acceleration, compress under brake)
+    let accelKick = 0;
+    if (player.isNitroActive) accelKick = 3.5;
+    else if (player.braking) accelKick = -1.8;
+
     if (this.mode === 'CHASE') {
-      // Behind and above car with dynamic drift lag
-      const dist = 18 + speedRatio * 4;
-      const height = 7 + speedRatio * 1.5;
+      // Behind and above car with dynamic drift lag and inertia kick
+      const dist = 18 + speedRatio * 5 + accelKick;
+      const height = 7.2 + speedRatio * 1.8;
 
       idealPos.set(
-        carPos.x - forwardX * dist,
+        carPos.x - forwardX * dist + rightX * lateralSwing,
         carPos.y + height,
-        carPos.z - forwardZ * dist
+        carPos.z - forwardZ * dist + rightZ * lateralSwing
       );
 
       idealTarget.set(
-        carPos.x + forwardX * 12,
-        carPos.y + 2.2,
-        carPos.z + forwardZ * 12
+        carPos.x + forwardX * 14 - rightX * (lateralSwing * 0.4),
+        carPos.y + 2.0,
+        carPos.z + forwardZ * 14 - rightZ * (lateralSwing * 0.4)
       );
     } else if (this.mode === 'CLOSE') {
       // Close follow
-      const dist = 11;
+      const dist = 11 + accelKick * 0.5;
       const height = 4.2;
 
       idealPos.set(
-        carPos.x - forwardX * dist,
+        carPos.x - forwardX * dist + rightX * (lateralSwing * 0.6),
         carPos.y + height,
-        carPos.z - forwardZ * dist
+        carPos.z - forwardZ * dist + rightZ * (lateralSwing * 0.6)
       );
 
       idealTarget.set(
-        carPos.x + forwardX * 8,
+        carPos.x + forwardX * 9,
         carPos.y + 1.8,
-        carPos.z + forwardZ * 8
+        carPos.z + forwardZ * 9
       );
     } else if (this.mode === 'HOOD') {
       // First-person hood view
@@ -116,20 +126,29 @@ export class Camera3D {
     }
 
     // 3. Smooth Damping / Interpolation
-    const lerpSpeed = this.mode === 'HOOD' ? 30.0 : 8.0;
+    const lerpSpeed = this.mode === 'HOOD' ? 32.0 : 9.5;
     this.currentPos.lerp(idealPos, Math.min(1.0, dt * lerpSpeed));
     this.currentTarget.lerp(idealTarget, Math.min(1.0, dt * lerpSpeed));
 
-    // 4. Apply Screen Shake
+    // 4. Apply High-Speed Road Jitter & Screen Shake
+    let jitterX = 0, jitterY = 0, jitterZ = 0;
+    if (Math.abs(player.speed) > 280) {
+      const highSpeedRatio = (Math.abs(player.speed) - 280) / 400;
+      const jMag = 0.04 * highSpeedRatio;
+      jitterX = (Math.random() - 0.5) * jMag;
+      jitterY = (Math.random() - 0.5) * jMag;
+      jitterZ = (Math.random() - 0.5) * jMag;
+    }
+
     if (particleSystem && particleSystem.shakeDuration > 0) {
       const mag = particleSystem.shakeMagnitude * 0.08 * particleSystem.shakeDuration;
       this.shakeOffset.set(
-        (Math.random() - 0.5) * mag,
-        (Math.random() - 0.5) * mag,
-        (Math.random() - 0.5) * mag
+        (Math.random() - 0.5) * mag + jitterX,
+        (Math.random() - 0.5) * mag + jitterY,
+        (Math.random() - 0.5) * mag + jitterZ
       );
     } else {
-      this.shakeOffset.set(0, 0, 0);
+      this.shakeOffset.set(jitterX, jitterY, jitterZ);
     }
 
     this.camera.position.copy(this.currentPos).add(this.shakeOffset);

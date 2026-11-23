@@ -125,14 +125,17 @@ export class Particles3D {
   }
 
   update(dt, player, car3D, missionManager) {
-    // 1. Tire smoke when drifting
-    if (player.isDrifting && Math.abs(player.speed) > 100 && !player.isAirborne) {
+    // 1. Tire smoke when drifting or burnout
+    if ((player.isDrifting || player.isBurnout) && !player.isAirborne) {
       const carPos = car3D.root.position;
       const rotY = car3D.root.rotation.y;
       const backX = carPos.x - Math.sin(rotY) * 3.5;
       const backZ = carPos.z - Math.cos(rotY) * 3.5;
 
-      this.createTireSmoke(backX + (Math.random() - 0.5) * 2, backZ + (Math.random() - 0.5) * 2);
+      this.createTireSmoke(backX + (Math.random() - 0.5) * 2.5, backZ + (Math.random() - 0.5) * 2.5);
+      if (player.isBurnout) {
+        this.createTireSmoke(backX + (Math.random() - 0.5) * 3.0, backZ + (Math.random() - 0.5) * 3.0);
+      }
     }
 
     // 2. Nitro Flame updates
